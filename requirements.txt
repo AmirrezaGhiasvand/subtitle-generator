@@ -1,0 +1,16 @@
+# -------- GUI --------
+customtkinter>=5.2.2
+
+# -------- Speech recognition --------
+faster-whisper>=1.0.3
+
+# -------- Translation --------
+# We reuse ctranslate2 (already pulled in by faster-whisper) for translation
+# inference too, using CTranslate2-converted OPUS-MT models. This avoids
+# adding a second heavy ML runtime (e.g. PyTorch) just for translation.
+ctranslate2>=4.4.0
+sentencepiece>=0.2.0
+
+# -------- Config --------
+pydantic-settings>=2.5.0
+python-dotenv>=1.0.1

@@ -1,0 +1,43 @@
+# -------- Python --------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# -------- Environment / secrets --------
+.env
+.env.*
+!.env.example
+
+# -------- AI models (downloaded at runtime, never committed) --------
+*.pt
+*.bin
+*.onnx
+models/
+.cache/
+huggingface_cache/
+
+# -------- PyInstaller build output --------
+build/output/
+dist/
+*.spec
+
+# -------- App-generated content --------
+*.srt
+!tests/**/*.srt
+output/
+
+# -------- OS files --------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -------- IDE / editor --------
+.vscode/
+.idea/
+*.swp
