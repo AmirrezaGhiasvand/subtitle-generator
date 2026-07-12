@@ -5,7 +5,7 @@ A simple, open-source desktop app: drop in a video or audio file, get back an
 translation into a language of your choice. Runs fully locally using
 open-source AI models, packaged as a single desktop executable.
 
-🔗 **Repo:** github.com/<your-username>/subtitle-generator
+🔗 **Repo:** [github.com/<your-username>/subtitle-generator](https://github.com/AmirrezaGhiasvand/subtitle-generator)
 
 > 🚧 **Status: early development.** Currently building the core pipeline
 > (FFmpeg → Faster-Whisper → SRT). See [Roadmap](#roadmap) below.
