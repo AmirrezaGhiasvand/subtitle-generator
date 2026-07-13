@@ -31,6 +31,8 @@ dist/
 *.srt
 !tests/**/*.srt
 output/
+*.mp4
+*.mkv
 
 # -------- OS files --------
 .DS_Store
