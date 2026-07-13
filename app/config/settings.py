@@ -16,12 +16,16 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # -------- Whisper --------
-    # tiny | base | small | medium | large-v3 — bigger = more accurate, slower, more RAM/VRAM
+    # Used only if whisper_model_path is not set (triggers a download-by-name).
     whisper_model_size: str = "small"
-    # cpu | cuda | auto
-    whisper_device: Literal["cpu", "cuda", "auto"] = "auto"
-    # int8 | int8_float16 | float16 | float32 | auto
-    whisper_compute_type: str = "auto"
+    # Path to a local CTranslate2 model directory (config.json, model.bin,
+    # tokenizer.json, vocabulary.txt). Preferred — fully offline.
+    whisper_model_path: str = ""
+    # CPU-only by design: this app targets lightweight video/audio files,
+    # so CPU inference is fast enough and avoids the CUDA-runtime
+    # dependency headaches most users' machines aren't set up for.
+    whisper_device: Literal["cpu", "cuda"] = "cpu"
+    whisper_compute_type: str = "int8"
 
 
 settings = Settings()
