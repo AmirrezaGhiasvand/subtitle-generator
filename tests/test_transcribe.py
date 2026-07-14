@@ -1,4 +1,6 @@
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.services.audio_extractor import extract_audio
 from app.services.transcriber import transcribe_audio
 
@@ -8,5 +10,5 @@ wav_path = extract_audio(Path("E:/subtitle-generator/4_5864224552116041056.mp4")
 result = transcribe_audio(wav_path)
 print(f"Detected language: {result.language} (confidence: {result.language_probability:.2f})")
 print(f"Segments: {len(result.segments)}")
-for seg in result.segments[:5]:
+for seg in result.segments:
     print(f"[{seg.start:.1f}s - {seg.end:.1f}s] ({seg.confidence:.2f}) {seg.text}")
