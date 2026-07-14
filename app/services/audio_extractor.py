@@ -44,12 +44,13 @@ def extract_audio(source_path: Path, output_path: Path) -> Path:
 
     command = [
         "ffmpeg",
-        "-y",                           # overwrite output without prompting
+        "-y",
         "-i", str(source_path),
-        "-vn",                          # drop video stream if present — audio only
-        "-acodec", "pcm_s16le",         # uncompressed 16-bit PCM
+        "-vn",
+        "-acodec", "pcm_s16le",
         "-ar", str(WHISPER_SAMPLE_RATE),
-        "-ac", "1",                     # mono
+        "-ac", "1",
+        "-af", "apad=pad_dur=1",   # append 1s of silence so VAD reliably closes the final speech segment
         str(output_path),
     ]
 
