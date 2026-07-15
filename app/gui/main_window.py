@@ -7,37 +7,35 @@ import platform
 import queue
 import threading
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 
 import customtkinter as ctk
 
 from app.core.history import add_entry
 from app.core.pipeline import PipelineResult, run_pipeline
+from app.gui.dnd_support import DnDCTk
 from app.gui.fonts import setup_fonts
+from app.gui.generate_view import GenerateView
 from app.gui.history_tab import HistoryTab
+from app.gui.sidebar import Sidebar
 
-ctk.set_appearance_mode("system")
+ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-SUPPORTED_FILETYPES = [
-    ("Video/Audio files", "*.mp4 *.mkv *.mov *.avi *.mp3 *.wav *.m4a *.flac"),
-    ("All files", "*.*"),
-]
 
-
-class MainWindow(ctk.CTk):
+class MainWindow(DnDCTk):
     def __init__(self):
         super().__init__()
 
         self._font_family = setup_fonts()
-
-        self.title("Subtitle Generator")
-        self.minsize(640, 480)
-        self.resizable(True, True)
-        self._maximize_on_start()
-
         self._selected_file: Path | None = None
         self._progress_queue: "queue.Queue[tuple[str, object]]" = queue.Queue()
+        self._appearance = "dark"
+
+        self.title("Subtitle Generator")
+        self.minsize(900, 600)
+        self.resizable(True, True)
+        self._maximize_on_start()
 
         self._build_layout()
 
@@ -51,86 +49,69 @@ class MainWindow(ctk.CTk):
             else:
                 self.attributes("-zoomed", True)
         except Exception:
-            # Fall back to a large centered window if the OS/window manager
-            # doesn't support a "maximized" state flag.
             screen_w = self.winfo_screenwidth()
             screen_h = self.winfo_screenheight()
             self.geometry(f"{int(screen_w * 0.85)}x{int(screen_h * 0.85)}+50+50")
 
-    def _font(self, size: int = 13, weight: str = "normal") -> ctk.CTkFont:
-        return ctk.CTkFont(family=self._font_family, size=size, weight=weight)
-
-    # -------- UI construction --------
+    # -------- Layout --------
 
     def _build_layout(self) -> None:
-        self.tabview = ctk.CTkTabview(self, command=self._on_tab_changed)
-        self.tabview.pack(fill="both", expand=True, padx=20, pady=20)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        self.generate_tab = self.tabview.add("Generate")
-        self.history_tab_container = self.tabview.add("History")
+        self.sidebar = Sidebar(self, font_family=self._font_family, on_navigate=self._on_navigate)
+        self.sidebar.grid(row=0, column=0, sticky="ns")
 
-        self._build_generate_tab()
+        self.content_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_container.grid(row=0, column=1, sticky="nsew")
+        self.content_container.grid_rowconfigure(0, weight=1)
+        self.content_container.grid_columnconfigure(0, weight=1)
 
-        self.history_tab = HistoryTab(self.history_tab_container, font_family=self._font_family)
-        self.history_tab.pack(fill="both", expand=True)
-
-    def _build_generate_tab(self) -> None:
-        container = ctk.CTkFrame(self.generate_tab, fg_color="transparent")
-        container.pack(expand=True)
-
-        ctk.CTkLabel(container, text="Subtitle Generator", font=self._font(24, "bold")).pack(pady=(10, 20))
-
-        self.select_button = ctk.CTkButton(
-            container, text="Select Video or Audio File", font=self._font(14),
-            command=self._on_select_file, width=280, height=40,
+        self.generate_view = GenerateView(
+            self.content_container,
+            font_family=self._font_family,
+            on_file_selected=self._on_file_selected,
+            on_generate_clicked=self._on_generate_clicked,
+            on_toggle_appearance=self._on_toggle_appearance,
         )
-        self.select_button.pack(pady=10)
+        self.generate_view.grid(row=0, column=0, sticky="nsew")
 
-        self.file_label = ctk.CTkLabel(container, text="No file selected", font=self._font(13), text_color="gray")
-        self.file_label.pack(pady=10)
+        self.history_tab = HistoryTab(self.content_container, font_family=self._font_family)
+        self.history_tab.grid(row=0, column=0, sticky="nsew")
 
-        self.generate_button = ctk.CTkButton(
-            container, text="Generate Subtitles", font=self._font(14, "bold"),
-            command=self._on_generate, state="disabled", width=280, height=40,
-        )
-        self.generate_button.pack(pady=10)
+        self._show_view("Generate")
 
-        self.progress_bar = ctk.CTkProgressBar(container, mode="indeterminate", width=320)
-        self.progress_bar.pack(pady=(20, 0))
-        self.progress_bar.set(0)
-
-        self.status_label = ctk.CTkLabel(container, text="", font=self._font(13), text_color="gray")
-        self.status_label.pack(pady=(10, 20))
-
-    # -------- Tab handling --------
-
-    def _on_tab_changed(self) -> None:
-        if self.tabview.get() == "History":
+    def _show_view(self, name: str) -> None:
+        if name == "Generate":
+            self.generate_view.tkraise()
+        else:
             self.history_tab.refresh()
+            self.history_tab.tkraise()
 
-    # -------- Event handlers --------
+    # -------- Navigation / theme --------
 
-    def _on_select_file(self) -> None:
-        chosen = filedialog.askopenfilename(title="Select a video or audio file", filetypes=SUPPORTED_FILETYPES)
-        if not chosen:
-            return
-        self._selected_file = Path(chosen)
-        self.file_label.configure(text=self._selected_file.name, text_color="white")
-        self.generate_button.configure(state="normal")
-        self.status_label.configure(text="")
+    def _on_navigate(self, name: str) -> None:
+        self._show_view(name)
 
-    def _on_generate(self) -> None:
+    def _on_toggle_appearance(self) -> None:
+        self._appearance = "light" if self._appearance == "dark" else "dark"
+        ctk.set_appearance_mode(self._appearance)
+        self.generate_view.set_theme_icon("\u2600\uFE0F" if self._appearance == "light" else "\U0001F319")
+
+    # -------- File selection / generation --------
+
+    def _on_file_selected(self, path: Path) -> None:
+        self._selected_file = path
+
+    def _on_generate_clicked(self) -> None:
         if self._selected_file is None:
             return
-        self.select_button.configure(state="disabled")
-        self.generate_button.configure(state="disabled")
-        self.progress_bar.start()
-        self.status_label.configure(text="Starting...", text_color="gray")
+
+        self.generate_view.set_busy(True)
+        self.generate_view.set_status("Starting...")
 
         threading.Thread(target=self._run_pipeline_thread, daemon=True).start()
         self.after(100, self._poll_progress)
-
-    # -------- Background work --------
 
     def _run_pipeline_thread(self) -> None:
         try:
@@ -147,28 +128,23 @@ class MainWindow(ctk.CTk):
             while True:
                 kind, payload = self._progress_queue.get_nowait()
                 if kind == "progress":
-                    self.status_label.configure(text=payload, text_color="gray")
+                    self.generate_view.set_status(payload)
                 elif kind == "done":
-                    self._on_pipeline_done(payload)  # type: ignore[arg-type]
+                    self._on_pipeline_done(payload)
                     return
                 elif kind == "error":
-                    self._on_pipeline_error(payload)  # type: ignore[arg-type]
+                    self._on_pipeline_error(payload)
                     return
         except queue.Empty:
             pass
         self.after(100, self._poll_progress)
 
-    # -------- Completion handlers --------
-
     def _on_pipeline_done(self, result: PipelineResult) -> None:
-        self.progress_bar.stop()
-        self.progress_bar.set(1)
-        self.status_label.configure(
-            text=f"Done — {result.segment_count} segments, language: {result.language}",
-            text_color="green",
+        self.generate_view.set_busy(False)
+        self.generate_view.complete_progress()
+        self.generate_view.set_status(
+            f"Done \u2014 {result.segment_count} segments, language: {result.language}", color="green",
         )
-        self.select_button.configure(state="normal")
-        self.generate_button.configure(state="normal")
 
         add_entry(
             source_file=self._selected_file,
@@ -176,16 +152,13 @@ class MainWindow(ctk.CTk):
             language=result.language,
             segment_count=result.segment_count,
         )
-        self.history_tab.refresh()
 
         messagebox.showinfo("Subtitles Generated", f"SRT file saved to:\n{result.srt_path}")
 
     def _on_pipeline_error(self, error_message: str) -> None:
-        self.progress_bar.stop()
-        self.progress_bar.set(0)
-        self.status_label.configure(text="An error occurred.", text_color="red")
-        self.select_button.configure(state="normal")
-        self.generate_button.configure(state="normal")
+        self.generate_view.set_busy(False)
+        self.generate_view.reset_progress()
+        self.generate_view.set_status("An error occurred.", color="red")
         messagebox.showerror("Error", error_message)
 
 
