@@ -7,9 +7,10 @@ from typing import Callable
 
 import customtkinter as ctk
 
+from app.gui.theme import ACCENT, ACCENT_HOVER, SIDEBAR_HOVER, TEXT_PRIMARY
+
 NAV_ITEMS = ["Generate", "History"]
 NAV_ICONS = {"Generate": "\u2728", "History": "\U0001F553"}
-ACCENT = ("#5B5FEF", "#4A4FD6")
 
 
 class Sidebar(ctk.CTkFrame):
@@ -32,7 +33,8 @@ class Sidebar(ctk.CTkFrame):
         brand_frame.pack(fill="x", padx=20, pady=(24, 30))
 
         ctk.CTkLabel(
-            brand_frame, text="\U0001F3AC  Subtitle Generator", font=self._font(17, "bold"), anchor="w",
+            brand_frame, text="\U0001F3AC  Subtitle Generator", font=self._font(17, "bold"),
+            text_color=TEXT_PRIMARY, anchor="w",
         ).pack(fill="x")
 
         for item in NAV_ITEMS:
@@ -42,8 +44,8 @@ class Sidebar(ctk.CTkFrame):
                 font=self._font(15),
                 anchor="w",
                 fg_color="transparent",
-                text_color=("gray10", "gray90"),
-                hover_color=("gray80", "gray25"),
+                text_color=TEXT_PRIMARY,
+                hover_color=SIDEBAR_HOVER,
                 corner_radius=8,
                 height=42,
                 command=lambda name=item: self._handle_click(name),
@@ -61,6 +63,6 @@ class Sidebar(ctk.CTkFrame):
     def _update_active_styles(self) -> None:
         for name, btn in self._nav_buttons.items():
             if name == self._active:
-                btn.configure(fg_color=ACCENT, text_color="white")
+                btn.configure(fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="white")
             else:
-                btn.configure(fg_color="transparent", text_color=("gray10", "gray90"))
+                btn.configure(fg_color="transparent", hover_color=SIDEBAR_HOVER, text_color=TEXT_PRIMARY)

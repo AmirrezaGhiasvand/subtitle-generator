@@ -18,6 +18,7 @@ from app.gui.fonts import setup_fonts
 from app.gui.generate_view import GenerateView
 from app.gui.history_tab import HistoryTab
 from app.gui.sidebar import Sidebar
+from app.gui.theme import SUCCESS
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -35,9 +36,13 @@ class MainWindow(DnDCTk):
         self.title("Subtitle Generator")
         self.minsize(900, 600)
         self.resizable(True, True)
-        self._maximize_on_start()
 
         self._build_layout()
+
+        # Defer maximizing until after the window is actually mapped and
+        # the event loop has started -- doing this synchronously before
+        # mainloop() runs caused an invisible window on some setups.
+        self.after(0, self._maximize_on_start)
 
     # -------- Startup helpers --------
 
@@ -141,9 +146,8 @@ class MainWindow(DnDCTk):
 
     def _on_pipeline_done(self, result: PipelineResult) -> None:
         self.generate_view.set_busy(False)
-        self.generate_view.complete_progress()
         self.generate_view.set_status(
-            f"Done \u2014 {result.segment_count} segments, language: {result.language}", color="green",
+            f"Done \u2014 {result.segment_count} segments, language: {result.language}", color=SUCCESS,
         )
 
         add_entry(
@@ -157,7 +161,6 @@ class MainWindow(DnDCTk):
 
     def _on_pipeline_error(self, error_message: str) -> None:
         self.generate_view.set_busy(False)
-        self.generate_view.reset_progress()
         self.generate_view.set_status("An error occurred.", color="red")
         messagebox.showerror("Error", error_message)
 

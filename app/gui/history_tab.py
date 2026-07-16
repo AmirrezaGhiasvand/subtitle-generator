@@ -9,8 +9,7 @@ import customtkinter as ctk
 
 from app.core.history import HistoryEntry, load_history
 from app.gui.open_utils import open_path, reveal_file
-
-ACCENT = ("#5B5FEF", "#4A4FD6")
+from app.gui.theme import ACCENT, ACCENT_HOVER, BORDER, TEXT_MUTED, TEXT_PRIMARY
 
 
 class HistoryTab(ctk.CTkFrame):
@@ -29,9 +28,9 @@ class HistoryTab(ctk.CTkFrame):
 
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=40, pady=(30, 10))
-        ctk.CTkLabel(header, text="History", font=self._font(30, "bold")).pack(anchor="w")
+        ctk.CTkLabel(header, text="History", font=self._font(30, "bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
         ctk.CTkLabel(
-            header, text="Previously generated subtitle files.", font=self._font(15), text_color="gray",
+            header, text="Previously generated subtitle files.", font=self._font(15), text_color=TEXT_MUTED,
         ).pack(anchor="w", pady=(4, 0))
 
         self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -45,7 +44,7 @@ class HistoryTab(ctk.CTkFrame):
 
         if not entries:
             ctk.CTkLabel(
-                self.scroll_frame, text="No files processed yet.", font=self._font(14), text_color="gray",
+                self.scroll_frame, text="No files processed yet.", font=self._font(14), text_color=TEXT_MUTED,
             ).pack(pady=20)
             return
 
@@ -60,25 +59,33 @@ class HistoryTab(ctk.CTkFrame):
         text_col.pack(side="left", fill="x", expand=True, padx=16, pady=14)
 
         ctk.CTkLabel(
-            text_col, text=Path(entry.source_file).name, font=self._font(16, "bold"), anchor="w",
+            text_col, text=Path(entry.source_file).name, font=self._font(16, "bold"),
+            text_color=TEXT_PRIMARY, anchor="w",
         ).pack(fill="x")
         ctk.CTkLabel(
             text_col,
-            text=f"{entry.created_at}   ·   {entry.language}   ·   {entry.segment_count} segments",
-            font=self._font(13), text_color="gray", anchor="w",
+            text=f"{entry.created_at}   \u00b7   {entry.language}   \u00b7   {entry.segment_count} segments",
+            font=self._font(13), text_color=TEXT_MUTED, anchor="w",
         ).pack(fill="x", pady=(2, 0))
 
         button_frame = ctk.CTkFrame(row, fg_color="transparent")
         button_frame.pack(side="right", padx=16, pady=14)
 
+        # Solid accent button -- white text is correct here in both themes
+        # (purple background stays purple regardless of light/dark mode).
         ctk.CTkButton(
             button_frame, text="Open SRT", width=100, height=34, corner_radius=8,
-            font=self._font(13), fg_color=ACCENT,
+            font=self._font(13), fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="white",
             command=lambda p=entry.srt_path: open_path(Path(p)),
         ).pack(side="left", padx=(0, 8))
 
+        # Transparent/outline button -- needs an EXPLICIT adaptive text
+        # color, since it doesn't inherit one from a solid fg_color the way
+        # the button above does. This was the bug: no text_color meant it
+        # wasn't reliably flipping to black in light mode.
         ctk.CTkButton(
             button_frame, text="Show in Folder", width=130, height=34, corner_radius=8,
-            font=self._font(13), fg_color="transparent", border_width=1,
+            font=self._font(13), fg_color="transparent", hover_color=("gray85", "gray25"),
+            text_color=TEXT_PRIMARY, border_width=1, border_color=BORDER,
             command=lambda p=entry.srt_path: reveal_file(Path(p)),
         ).pack(side="left")
