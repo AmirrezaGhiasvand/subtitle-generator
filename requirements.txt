@@ -16,3 +16,6 @@ sentencepiece>=0.2.0
 pydantic-settings>=2.5.0
 python-dotenv>=1.0.1
 platformdirs>=4.3.0
+
+keyring>=25.0.0
+requests>=2.32.0
