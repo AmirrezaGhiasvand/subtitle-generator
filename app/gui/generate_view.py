@@ -5,11 +5,12 @@ progress feedback.
 from __future__ import annotations
 
 from pathlib import Path
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from typing import Callable, Optional
 
 import customtkinter as ctk
 
+from app.core.file_validation import ALLOWED_EXTENSIONS, UnsupportedFileError, validate_media_file
 from app.gui.theme import ACCENT, ACCENT_HOVER, BORDER, PROGRESS_TRACK, SUCCESS, SURFACE, TEXT_MUTED, TEXT_PRIMARY
 
 try:
@@ -18,8 +19,10 @@ try:
 except ImportError:
     DND_AVAILABLE = False
 
+# Built from the same ALLOWED_EXTENSIONS used for real validation, so the
+# dialog's filter and the actual accepted formats can never drift apart.
 SUPPORTED_FILETYPES = [
-    ("Video/Audio files", "*.mp4 *.mkv *.mov *.avi *.mp3 *.wav *.m4a *.flac"),
+    ("Video/Audio files", " ".join(f"*{ext}" for ext in sorted(ALLOWED_EXTENSIONS))),
     ("All files", "*.*"),
 ]
 
@@ -185,6 +188,12 @@ class GenerateView(ctk.CTkFrame):
     # -------- Public API (called by MainWindow) --------
 
     def set_selected_file(self, path: Path) -> None:
+        try:
+            validate_media_file(path)
+        except UnsupportedFileError as e:
+            messagebox.showerror("Unsupported File", str(e))
+            return
+
         self._selected_file = path
         self._show_selected_file_state()
         self.generate_button.configure(state="normal")
