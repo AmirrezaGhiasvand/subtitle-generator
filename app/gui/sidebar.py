@@ -9,8 +9,8 @@ import customtkinter as ctk
 
 from app.gui.theme import ACCENT, ACCENT_HOVER, SIDEBAR_HOVER, TEXT_PRIMARY
 
-NAV_ITEMS = ["Generate", "History"]
-NAV_ICONS = {"Generate": "\u2728", "History": "\U0001F553"}
+NAV_ITEMS = ["Generate", "History", "Settings"]
+NAV_ICONS = {"Generate": "\u2728", "History": "\U0001F553", "Settings": "\u2699"}
 
 
 class Sidebar(ctk.CTkFrame):
