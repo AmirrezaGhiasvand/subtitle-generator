@@ -26,6 +26,14 @@ SUPPORTED_FILETYPES = [
     ("All files", "*.*"),
 ]
 
+NO_TRANSLATION = "No translation (keep original)"
+LANGUAGE_OPTIONS = [
+    NO_TRANSLATION,
+    "English", "Persian", "Spanish", "French", "German", "Arabic",
+    "Chinese (Simplified)", "Japanese", "Korean", "Russian", "Turkish",
+    "Portuguese", "Italian", "Hindi",
+]
+
 
 class GenerateView(ctk.CTkFrame):
     def __init__(
@@ -95,6 +103,17 @@ class GenerateView(ctk.CTkFrame):
         action_frame = ctk.CTkFrame(self, fg_color="transparent")
         action_frame.grid(row=2, column=0, sticky="ew", padx=40, pady=(0, 30))
         action_frame.grid_columnconfigure(0, weight=1)
+
+        lang_row = ctk.CTkFrame(action_frame, fg_color="transparent")
+        lang_row.pack(fill="x", pady=(0, 14))
+        ctk.CTkLabel(
+            lang_row, text="Translate to", font=self._font(13, "bold"), text_color=TEXT_PRIMARY,
+        ).pack(side="left", padx=(0, 10))
+        self.language_combo = ctk.CTkComboBox(
+            lang_row, values=LANGUAGE_OPTIONS, font=self._font(13), width=260, state="readonly",
+        )
+        self.language_combo.set(NO_TRANSLATION)
+        self.language_combo.pack(side="left")
 
         self.generate_button = ctk.CTkButton(
             action_frame, text="Generate Subtitles", font=self._font(16, "bold"),
@@ -218,3 +237,7 @@ class GenerateView(ctk.CTkFrame):
 
     def set_theme_icon(self, icon: str) -> None:
         self.theme_button.configure(text=icon)
+
+    def get_target_language(self) -> Optional[str]:
+        value = self.language_combo.get()
+        return None if value == NO_TRANSLATION else value

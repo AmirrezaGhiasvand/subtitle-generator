@@ -62,10 +62,12 @@ class HistoryTab(ctk.CTkFrame):
             text_col, text=Path(entry.source_file).name, font=self._font(16, "bold"),
             text_color=TEXT_PRIMARY, anchor="w",
         ).pack(fill="x")
+
+        meta_text = f"{entry.created_at}   \u00b7   {entry.language}   \u00b7   {entry.segment_count} segments"
+        if entry.translated_srt_path:
+            meta_text += f"   \u00b7   translated to {entry.target_language}"
         ctk.CTkLabel(
-            text_col,
-            text=f"{entry.created_at}   \u00b7   {entry.language}   \u00b7   {entry.segment_count} segments",
-            font=self._font(13), text_color=TEXT_MUTED, anchor="w",
+            text_col, text=meta_text, font=self._font(13), text_color=TEXT_MUTED, anchor="w",
         ).pack(fill="x", pady=(2, 0))
 
         button_frame = ctk.CTkFrame(row, fg_color="transparent")
@@ -89,3 +91,10 @@ class HistoryTab(ctk.CTkFrame):
             text_color=TEXT_PRIMARY, border_width=1, border_color=BORDER,
             command=lambda p=entry.srt_path: reveal_file(Path(p)),
         ).pack(side="left")
+
+        if entry.translated_srt_path:
+            ctk.CTkButton(
+                button_frame, text=f"Open {entry.target_language} SRT", width=150, height=34, corner_radius=8,
+                font=self._font(13), fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="white",
+                command=lambda p=entry.translated_srt_path: open_path(Path(p)),
+            ).pack(side="left", padx=(8, 0))

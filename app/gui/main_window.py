@@ -17,6 +17,7 @@ from app.gui.dnd_support import DnDCTk
 from app.gui.fonts import setup_fonts
 from app.gui.generate_view import GenerateView
 from app.gui.history_tab import HistoryTab
+from app.gui.settings_view import SettingsView
 from app.gui.sidebar import Sidebar
 from app.gui.theme import SUCCESS
 
@@ -39,9 +40,9 @@ class MainWindow(DnDCTk):
 
         self._build_layout()
 
-        # Defer maximizing until after the window is actually mapped and
-        # the event loop has started -- doing this synchronously before
-        # mainloop() runs caused an invisible window on some setups.
+        # Deferred until after the event loop actually starts -- resizing
+        # synchronously before mainloop() runs caused an invisible window
+        # on some setups.
         self.after(0, self._maximize_on_start)
 
     # -------- Startup helpers --------
@@ -84,14 +85,19 @@ class MainWindow(DnDCTk):
         self.history_tab = HistoryTab(self.content_container, font_family=self._font_family)
         self.history_tab.grid(row=0, column=0, sticky="nsew")
 
+        self.settings_view = SettingsView(self.content_container, font_family=self._font_family)
+        self.settings_view.grid(row=0, column=0, sticky="nsew")
+
         self._show_view("Generate")
 
     def _show_view(self, name: str) -> None:
         if name == "Generate":
             self.generate_view.tkraise()
-        else:
+        elif name == "History":
             self.history_tab.refresh()
             self.history_tab.tkraise()
+        elif name == "Settings":
+            self.settings_view.tkraise()
 
     # -------- Navigation / theme --------
 
@@ -112,16 +118,19 @@ class MainWindow(DnDCTk):
         if self._selected_file is None:
             return
 
+        target_language = self.generate_view.get_target_language()
+
         self.generate_view.set_busy(True)
         self.generate_view.set_status("Starting...")
 
-        threading.Thread(target=self._run_pipeline_thread, daemon=True).start()
+        threading.Thread(target=self._run_pipeline_thread, args=(target_language,), daemon=True).start()
         self.after(100, self._poll_progress)
 
-    def _run_pipeline_thread(self) -> None:
+    def _run_pipeline_thread(self, target_language: str | None) -> None:
         try:
             result = run_pipeline(
                 self._selected_file,
+                target_language=target_language,
                 on_progress=lambda msg: self._progress_queue.put(("progress", msg)),
             )
             self._progress_queue.put(("done", result))
@@ -155,9 +164,15 @@ class MainWindow(DnDCTk):
             srt_path=result.srt_path,
             language=result.language,
             segment_count=result.segment_count,
+            translated_srt_path=result.translated_srt_path,
+            target_language=result.target_language,
         )
 
-        messagebox.showinfo("Subtitles Generated", f"SRT file saved to:\n{result.srt_path}")
+        message = f"SRT file saved to:\n{result.srt_path}"
+        if result.translated_srt_path:
+            message += f"\n\nTranslated ({result.target_language}) SRT saved to:\n{result.translated_srt_path}"
+
+        messagebox.showinfo("Subtitles Generated", message)
 
     def _on_pipeline_error(self, error_message: str) -> None:
         self.generate_view.set_busy(False)
