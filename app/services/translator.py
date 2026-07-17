@@ -66,11 +66,20 @@ def _translate_batch(texts: list[str], target_language: str, api_key: str, model
     numbered_input = "\n".join(f"{idx + 1}. {text}" for idx, text in enumerate(texts))
 
     prompt = (
-        f"Translate each numbered subtitle line into {target_language}. "
-        f"Keep the same numbering, one translated line per number, and do not merge, "
-        f"split, or reorder lines. Preserve tone and meaning; keep it natural for "
-        f"subtitles (concise, no explanations, no extra commentary).\n\n{numbered_input}"
-    )
+    f"You are translating subtitles into {target_language}.\n\n"
+    "Translate each numbered line naturally, as if it were spoken in a real conversation. "
+    "Use a friendly, informal tone whenever appropriate, you can change the words to sound natural in the target language, but keep the meaning,"
+    "emotion, and context.\n\n"
+    "Rules:\n"
+    "- Keep the same numbering.\n"
+    "- Use , when a sentence is unfinished to indicate continuation.\n"
+    "- Output exactly one translated line for each input line.\n"
+    "- Do not merge, split, remove, or reorder lines.\n"
+    "- Keep subtitles concise and easy to read.\n"
+    "- Do not add explanations, notes, or commentary.\n"
+    "- If the original is casual or slangy, translate it into a natural equivalent rather than literally.\n\n"
+    f"{numbered_input}"
+)
 
     try:
         response = requests.post(
