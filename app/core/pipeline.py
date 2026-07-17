@@ -1,7 +1,7 @@
 """
 Orchestrates the full subtitle generation pipeline:
-extract audio -> transcribe -> write SRT -> (optionally) translate ->
-write translated SRT.
+extract audio -> transcribe -> resegment into subtitle-sized chunks ->
+write SRT -> (optionally) translate -> write translated SRT.
 
 Kept separate from the GUI so this logic is testable and reusable
 independent of any specific interface.
@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from app.core.srt_writer import write_srt
+from app.core.subtitle_segmenter import DEFAULT_MAX_WORDS_PER_SEGMENT, resegment_by_word_count
 from app.services.audio_extractor import extract_audio
 from app.services.transcriber import TranscriptionResult, transcribe_audio
 
@@ -34,6 +35,7 @@ def run_pipeline(
     source_path: Path,
     output_dir: Optional[Path] = None,
     target_language: Optional[str] = None,
+    max_words_per_subtitle: int = DEFAULT_MAX_WORDS_PER_SEGMENT,
     on_progress: Optional[ProgressCallback] = None,
 ) -> PipelineResult:
     """
@@ -47,6 +49,10 @@ def run_pipeline(
         target_language: if given, also produce a translated SRT in this
             language via OpenRouter. The original-language SRT is always
             produced regardless -- translation never replaces it.
+        max_words_per_subtitle: subtitle lines are resegmented (using
+            Whisper's word-level timestamps) into chunks of at most this
+            many words, instead of using Whisper's own longer,
+            sentence/pause-based segment boundaries.
         on_progress: optional callback invoked with short status strings.
     """
     def report(message: str) -> None:
@@ -63,15 +69,18 @@ def run_pipeline(
     report("Transcribing (this may take a while for longer files)...")
     result: TranscriptionResult = transcribe_audio(audio_path)
 
+    report("Formatting subtitles...")
+    subtitle_segments = resegment_by_word_count(result.words, max_words=max_words_per_subtitle)
+
     report("Writing subtitle file...")
-    srt_path = write_srt(result.segments, output_dir / f"{source_path.stem}.srt")
+    srt_path = write_srt(subtitle_segments, output_dir / f"{source_path.stem}.srt")
 
     translated_srt_path: Optional[Path] = None
     if target_language:
         report(f"Translating to {target_language}...")
         from app.services.translator import translate_segments
 
-        translated_segments = translate_segments(result.segments, target_language)
+        translated_segments = translate_segments(subtitle_segments, target_language)
 
         report("Writing translated subtitle file...")
         lang_suffix = target_language.lower().replace(" ", "_")
@@ -87,5 +96,5 @@ def run_pipeline(
         target_language=target_language,
         language=result.language,
         language_probability=result.language_probability,
-        segment_count=len(result.segments),
+        segment_count=len(subtitle_segments),
     )

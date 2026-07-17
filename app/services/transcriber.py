@@ -13,8 +13,18 @@ from app.config.settings import settings
 
 
 @dataclass
+class Word:
+    """A single word with its own timestamp, used for subtitle resegmentation."""
+    start: float
+    end: float
+    text: str
+
+
+@dataclass
 class TranscriptSegment:
-    """A single timestamped chunk of transcribed speech."""
+    """A single timestamped chunk of transcribed speech (Whisper's own
+    sentence/pause-based segmentation -- kept for reference, but subtitle
+    output uses word-level resegmentation instead, see subtitle_segmenter.py)."""
     start: float          # seconds
     end: float            # seconds
     text: str
@@ -26,6 +36,7 @@ class TranscriptionResult:
     language: str               # ISO 639-1 code, e.g. "en", "fa"
     language_probability: float
     segments: list[TranscriptSegment]
+    words: list[Word]           # flat word-level timestamps across the whole transcript
 
 
 # Loading model weights is expensive — cache the instance instead of
@@ -56,25 +67,32 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
 
     segments_iter, info = model.transcribe(
         str(audio_path),
-        language=None,     # None = auto-detect
-        word_timestamps=False,
-        vad_filter=True,   # skip silent stretches
+        language=None,       # None = auto-detect
+        word_timestamps=True,  # needed for subtitle resegmentation into short lines
+        vad_filter=True,     # skip silent stretches
     )
 
-    segments = [
-        TranscriptSegment(
-            start=seg.start,
-            end=seg.end,
-            text=seg.text.strip(),
-            confidence=_avg_logprob_to_confidence(seg.avg_logprob),
+    segments: list[TranscriptSegment] = []
+    words: list[Word] = []
+
+    for seg in segments_iter:
+        segments.append(
+            TranscriptSegment(
+                start=seg.start,
+                end=seg.end,
+                text=seg.text.strip(),
+                confidence=_avg_logprob_to_confidence(seg.avg_logprob),
+            )
         )
-        for seg in segments_iter
-    ]
+        # seg.words is populated because word_timestamps=True above.
+        for w in seg.words:
+            words.append(Word(start=w.start, end=w.end, text=w.word.strip()))
 
     return TranscriptionResult(
         language=info.language,
         language_probability=info.language_probability,
         segments=segments,
+        words=words,
     )
 
 

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # dependency headaches most users' machines aren't set up for.
     whisper_device: Literal["cpu", "cuda"] = "cpu"
     whisper_compute_type: str = "int8"
+    max_words_per_subtitle: int = 7
 
 
 settings = Settings()
