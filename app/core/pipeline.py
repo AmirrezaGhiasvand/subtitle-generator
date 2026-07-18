@@ -15,6 +15,7 @@ from typing import Callable, Optional
 from app.core.srt_writer import write_srt
 from app.core.subtitle_segmenter import DEFAULT_MAX_WORDS_PER_SEGMENT, resegment_by_word_count
 from app.services.audio_extractor import extract_audio
+from app.services.model_downloader import download_model, is_model_ready
 from app.services.transcriber import TranscriptionResult, transcribe_audio
 
 
@@ -62,6 +63,20 @@ def run_pipeline(
     if output_dir is None:
         output_dir = source_path.parent / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # If no manually-configured local model path is set (settings.whisper_model_path),
+    # the app manages its own downloaded copy -- download it now if this is
+    # the first time (or a previous download was interrupted).
+    from app.config.settings import settings
+
+    if not settings.whisper_model_path and not is_model_ready():
+        report("Downloading speech recognition model (one-time, ~1.6GB)...")
+
+        def _model_progress(done: int, total: int) -> None:
+            percent = int(100 * done / total)
+            report(f"Downloading speech recognition model... {percent}%")
+
+        download_model(on_progress=_model_progress)
 
     report("Extracting audio...")
     audio_path = extract_audio(source_path, output_dir / f"{source_path.stem}.wav")

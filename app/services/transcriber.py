@@ -47,7 +47,16 @@ _model_cache: WhisperModel | None = None
 def _get_model() -> WhisperModel:
     global _model_cache
     if _model_cache is None:
-        model_source = settings.whisper_model_path or settings.whisper_model_size
+        if settings.whisper_model_path:
+            # Explicit manual override (e.g. set in .env during development) always wins.
+            model_source = settings.whisper_model_path
+        else:
+            # No manual path configured -- use the app's own auto-downloaded
+            # copy. pipeline.py ensures this exists (downloading it on first
+            # run if needed) before transcribe_audio() is ever called.
+            from app.services.model_downloader import get_model_dir
+            model_source = str(get_model_dir())
+
         _model_cache = WhisperModel(
             model_source,
             device=settings.whisper_device,
