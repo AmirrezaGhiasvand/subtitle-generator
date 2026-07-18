@@ -1,31 +1,67 @@
 """
-Downloads the Faster-Whisper model files (CTranslate2 format) from
-Hugging Face on first run, so the packaged app doesn't need to bundle a
-multi-gigabyte model file directly in the installer.
+Locates the Faster-Whisper model files (CTranslate2 format) that the user
+downloads and places manually -- either in the app's default per-user
+location, or in any folder of their choosing via "Locate Model Folder".
+
+Auto-downloading was tried and dropped: model.bin (~1.6GB) downloads
+reliably in development, but real end users hit flaky connections, CDN
+timeouts, and slow mirrors that turned "click Generate" into an
+unpredictable, unattended multi-minute network operation with failure
+modes that are hard to recover from cleanly inside a packaged desktop
+app. A one-time manual download with clear instructions is simpler and
+more reliable for a v1.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
-from huggingface_hub import HfApi, hf_hub_download
 from platformdirs import user_data_dir
 
 DEFAULT_REPO_ID = "deepdml/faster-whisper-large-v3-turbo-ct2"
+MODEL_DOWNLOAD_URL = f"https://huggingface.co/{DEFAULT_REPO_ID}/tree/main"
 
-# Reports (bytes_downloaded_so_far, total_bytes) after each file completes.
-# Progress granularity is per-file, not per-byte -- see download_model()
-# docstring for why.
-ProgressCallback = Callable[[int, int], None]
+REQUIRED_FILENAMES = ("model.bin", "config.json")
 
 
-class ModelDownloadError(Exception):
-    """Raised when the model fails to download or its file list can't be fetched."""
+class ModelNotFoundError(Exception):
+    """Raised when the Whisper model files aren't present in any known location."""
+
+    def __init__(self, model_dir: Path, download_url: str = MODEL_DOWNLOAD_URL):
+        self.model_dir = model_dir
+        self.download_url = download_url
+        super().__init__(
+            f"Speech recognition model not found.\n\n"
+            f"Download the model files from:\n{download_url}\n\n"
+            f"and place them in:\n{model_dir}\n\n"
+            f"(or use \"Locate Model Folder\" to point at files you've already downloaded elsewhere)"
+        )
 
 
-def get_model_dir(repo_id: str = DEFAULT_REPO_ID) -> Path:
+class ModelLoadError(Exception):
     """
-    The local directory where this model's files should live: a per-user
+    Raised when model files exist locally but fail to actually load --
+    most commonly a corrupted or incomplete download (e.g. an interrupted
+    transfer left a truncated model.bin, which passes the "file exists
+    and is non-empty" check but fails once ctranslate2 tries to read the
+    missing bytes).
+    """
+
+    def __init__(self, model_dir: Path, original_error: Exception, download_url: str = MODEL_DOWNLOAD_URL):
+        self.model_dir = model_dir
+        self.download_url = download_url
+        self.original_error = original_error
+        super().__init__(
+            f"The speech recognition model files appear to be corrupted or incomplete.\n\n"
+            f"Delete everything in:\n{model_dir}\n\n"
+            f"then download fresh files from:\n{download_url}\n\n"
+            f"(Technical detail: {original_error})"
+        )
+
+
+def get_default_model_dir(repo_id: str = DEFAULT_REPO_ID) -> Path:
+    """
+    The app's default suggested location for model files: a per-user
     app-data location, which stays writable even when the app itself is
     installed somewhere read-only (e.g. Program Files).
     """
@@ -34,69 +70,50 @@ def get_model_dir(repo_id: str = DEFAULT_REPO_ID) -> Path:
     return data_dir / "models" / safe_name
 
 
-def is_model_ready(repo_id: str = DEFAULT_REPO_ID) -> bool:
+# Kept as an alias -- earlier versions of this module only supported the
+# default location, and other modules refer to this name.
+get_model_dir = get_default_model_dir
+
+
+def is_valid_model_folder(path: Path) -> bool:
     """
-    Best-effort check that the model appears fully downloaded: every file
-    Hugging Face lists for this repo exists locally and is non-empty. Not
-    a byte-perfect integrity check, but catches the common case of an
-    interrupted first download.
+    Check that a given folder actually contains the required model files
+    (non-empty). Used both for the default location and for any custom
+    folder a user points the app at via "Locate Model Folder".
     """
-    model_dir = get_model_dir(repo_id)
-    if not model_dir.exists():
+    if not path.exists() or not path.is_dir():
         return False
-
-    try:
-        expected_files = _list_repo_files(repo_id)
-    except Exception:
-        # Can't reach Hugging Face right now -- fall back to "does
-        # anything at all exist locally", so a machine that already
-        # downloaded the model successfully once can still run fully
-        # offline afterward.
-        return any(model_dir.iterdir())
-
-    return all((model_dir / name).exists() and (model_dir / name).stat().st_size > 0 for name in expected_files)
+    return all((path / name).exists() and (path / name).stat().st_size > 0 for name in REQUIRED_FILENAMES)
 
 
-def download_model(repo_id: str = DEFAULT_REPO_ID, on_progress: Optional[ProgressCallback] = None) -> Path:
+def is_model_ready(repo_id: str = DEFAULT_REPO_ID) -> bool:
+    """Check the default location specifically (kept for backward compatibility)."""
+    return is_valid_model_folder(get_default_model_dir(repo_id))
+
+
+def resolve_model_path(repo_id: str = DEFAULT_REPO_ID) -> Optional[Path]:
     """
-    Download every file in `repo_id` into this app's per-user model
-    directory, reporting cumulative progress after each file finishes.
-
-    Progress is reported per-file rather than per-byte: hf_hub_download()
-    downloads a whole file per call, and for this model that means ~5
-    updates total (model.bin alone is the vast majority of the size).
-    Byte-level smoothness would require bypassing huggingface_hub's
-    built-in resumable-download handling -- not worth giving up for a
-    slightly choppier progress bar.
+    Resolve which folder to actually load the model from, in priority order:
+      1. A developer override via .env (settings.whisper_model_path)
+      2. A user-configured custom folder (set via "Locate Model Folder")
+      3. The app's default per-user download location, if valid files are there
+      4. None -- caller should treat this as "not set up yet"
     """
-    model_dir = get_model_dir(repo_id)
-    model_dir.mkdir(parents=True, exist_ok=True)
+    from app.config.settings import settings
 
-    try:
-        files = _list_repo_files_with_sizes(repo_id)
-    except Exception as e:
-        raise ModelDownloadError(f"Could not reach Hugging Face to list model files: {e}") from e
+    if settings.whisper_model_path:
+        candidate = Path(settings.whisper_model_path)
+        if is_valid_model_folder(candidate):
+            return candidate
 
-    total_size = sum(size for _, size in files) or 1  # avoid div-by-zero if sizes are unknown
-    downloaded_so_far = 0
+    from app.core.app_settings import get_custom_model_path
 
-    for filename, size in files:
-        try:
-            hf_hub_download(repo_id=repo_id, filename=filename, local_dir=model_dir)
-        except Exception as e:
-            raise ModelDownloadError(f"Failed to download {filename}: {e}") from e
+    custom = get_custom_model_path()
+    if custom and is_valid_model_folder(Path(custom)):
+        return Path(custom)
 
-        downloaded_so_far += size
-        if on_progress:
-            on_progress(downloaded_so_far, total_size)
+    default_dir = get_default_model_dir(repo_id)
+    if is_valid_model_folder(default_dir):
+        return default_dir
 
-    return model_dir
-
-
-def _list_repo_files(repo_id: str) -> list[str]:
-    return [name for name, _ in _list_repo_files_with_sizes(repo_id)]
-
-
-def _list_repo_files_with_sizes(repo_id: str) -> list[tuple[str, int]]:
-    info = HfApi().model_info(repo_id, files_metadata=True)
-    return [(f.rfilename, f.size or 0) for f in info.siblings]
+    return None

@@ -25,37 +25,33 @@ class TranscriptSegment:
     """A single timestamped chunk of transcribed speech (Whisper's own
     sentence/pause-based segmentation -- kept for reference, but subtitle
     output uses word-level resegmentation instead, see subtitle_segmenter.py)."""
-    start: float          # seconds
-    end: float            # seconds
+    start: float
+    end: float
     text: str
-    confidence: float     # 0.0-1.0, derived from avg_logprob
+    confidence: float
 
 
 @dataclass
 class TranscriptionResult:
-    language: str               # ISO 639-1 code, e.g. "en", "fa"
+    language: str
     language_probability: float
     segments: list[TranscriptSegment]
-    words: list[Word]           # flat word-level timestamps across the whole transcript
+    words: list[Word]
 
 
-# Loading model weights is expensive — cache the instance instead of
-# reloading it on every call.
 _model_cache: WhisperModel | None = None
 
 
 def _get_model() -> WhisperModel:
     global _model_cache
     if _model_cache is None:
-        if settings.whisper_model_path:
-            # Explicit manual override (e.g. set in .env during development) always wins.
-            model_source = settings.whisper_model_path
-        else:
-            # No manual path configured -- use the app's own auto-downloaded
-            # copy. pipeline.py ensures this exists (downloading it on first
-            # run if needed) before transcribe_audio() is ever called.
-            from app.services.model_downloader import get_model_dir
-            model_source = str(get_model_dir())
+        from app.services.model_downloader import get_default_model_dir, resolve_model_path
+
+        # pipeline.py already verified resolve_model_path() is not None
+        # before calling into transcription -- fall back to the default
+        # location's path string here only as a defensive last resort.
+        model_path = resolve_model_path()
+        model_source = str(model_path) if model_path else str(get_default_model_dir())
 
         _model_cache = WhisperModel(
             model_source,
@@ -72,30 +68,38 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
     if not audio_path.exists():
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-    model = _get_model()
+    from app.services.model_downloader import ModelLoadError, get_default_model_dir, resolve_model_path
 
-    segments_iter, info = model.transcribe(
-        str(audio_path),
-        language=None,       # None = auto-detect
-        word_timestamps=True,  # needed for subtitle resegmentation into short lines
-        vad_filter=True,     # skip silent stretches
-    )
+    model_dir_for_error = resolve_model_path() or get_default_model_dir()
 
-    segments: list[TranscriptSegment] = []
-    words: list[Word] = []
+    try:
+        model = _get_model()
 
-    for seg in segments_iter:
-        segments.append(
-            TranscriptSegment(
-                start=seg.start,
-                end=seg.end,
-                text=seg.text.strip(),
-                confidence=_avg_logprob_to_confidence(seg.avg_logprob),
-            )
+        segments_iter, info = model.transcribe(
+            str(audio_path),
+            language=None,
+            word_timestamps=True,
+            vad_filter=True,
         )
-        # seg.words is populated because word_timestamps=True above.
-        for w in seg.words:
-            words.append(Word(start=w.start, end=w.end, text=w.word.strip()))
+
+        segments: list[TranscriptSegment] = []
+        words: list[Word] = []
+
+        for seg in segments_iter:
+            segments.append(
+                TranscriptSegment(
+                    start=seg.start,
+                    end=seg.end,
+                    text=seg.text.strip(),
+                    confidence=_avg_logprob_to_confidence(seg.avg_logprob),
+                )
+            )
+            for w in seg.words:
+                words.append(Word(start=w.start, end=w.end, text=w.word.strip()))
+    except RuntimeError as e:
+        global _model_cache
+        _model_cache = None
+        raise ModelLoadError(model_dir=model_dir_for_error, original_error=e) from e
 
     return TranscriptionResult(
         language=info.language,
@@ -106,8 +110,4 @@ def transcribe_audio(audio_path: Path) -> TranscriptionResult:
 
 
 def _avg_logprob_to_confidence(avg_logprob: float) -> float:
-    """
-    Faster-Whisper reports avg_logprob (a negative number; closer to 0 means
-    more confident). Convert to an intuitive 0.0-1.0 confidence score.
-    """
     return max(0.0, min(1.0, 1.0 + avg_logprob))

@@ -77,3 +77,23 @@ def set_translation_model(model: str) -> None:
     data = _load_json()
     data["translation_model"] = model
     _save_json(data)
+
+def get_custom_model_path() -> Optional[str]:
+    """
+    A user-chosen folder containing the Whisper model files, set via the
+    'Locate Model Folder' option in Settings or the setup dialog. Not a
+    secret, so plain JSON storage (no keyring) is fine.
+    """
+    return _load_json().get("custom_model_path")
+
+
+def set_custom_model_path(path: str) -> None:
+    data = _load_json()
+    data["custom_model_path"] = path
+    _save_json(data)
+
+
+def clear_custom_model_path() -> None:
+    data = _load_json()
+    data.pop("custom_model_path", None)
+    _save_json(data)

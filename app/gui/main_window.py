@@ -10,7 +10,8 @@ from pathlib import Path
 from tkinter import messagebox
 
 import customtkinter as ctk
-
+from app.gui.model_missing_dialog import ModelMissingDialog
+from app.services.model_downloader import ModelLoadError, ModelNotFoundError
 from app.core.history import add_entry
 from app.core.pipeline import PipelineResult, run_pipeline
 from app.gui.dnd_support import DnDCTk
@@ -133,7 +134,10 @@ class MainWindow(DnDCTk):
                 target_language=target_language,
                 on_progress=lambda msg: self._progress_queue.put(("progress", msg)),
             )
-            self._progress_queue.put(("done", result))
+        except ModelNotFoundError as e:
+            self._progress_queue.put(("model_missing", e))
+        except ModelLoadError as e:
+            self._progress_queue.put(("model_corrupted", e))
         except Exception as e:
             self._progress_queue.put(("error", str(e)))
 
@@ -145,6 +149,12 @@ class MainWindow(DnDCTk):
                     self.generate_view.set_status(payload)
                 elif kind == "done":
                     self._on_pipeline_done(payload)
+                    return
+                elif kind == "model_missing":
+                    self._on_model_missing(payload, corrupted=False)
+                    return
+                elif kind == "model_corrupted":
+                    self._on_model_missing(payload, corrupted=True)
                     return
                 elif kind == "error":
                     self._on_pipeline_error(payload)
@@ -173,6 +183,16 @@ class MainWindow(DnDCTk):
             message += f"\n\nTranslated ({result.target_language}) SRT saved to:\n{result.translated_srt_path}"
 
         messagebox.showinfo("Subtitles Generated", message)
+
+
+    def _on_model_missing(self, error, corrupted: bool) -> None:
+        self.generate_view.set_busy(False)
+        status = "Speech recognition model files are corrupted." if corrupted else "Speech recognition model not found."
+        self.generate_view.set_status(status, color="red")
+        ModelMissingDialog(
+            self, font_family=self._font_family, model_dir=error.model_dir,
+            download_url=error.download_url, corrupted=corrupted,
+        )
 
     def _on_pipeline_error(self, error_message: str) -> None:
         self.generate_view.set_busy(False)
