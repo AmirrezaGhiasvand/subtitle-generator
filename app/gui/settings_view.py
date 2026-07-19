@@ -54,8 +54,10 @@ class SettingsView(ctk.CTkFrame):
             font=self._font(15), text_color=TEXT_MUTED,
         ).pack(anchor="w", pady=(4, 0))
 
+    
         self._build_model_card()
         self._build_translation_card()
+        self._build_diagnostics_card()
 
     def _build_model_card(self) -> None:
         card = ctk.CTkFrame(self, corner_radius=14, fg_color=SURFACE)
@@ -186,3 +188,32 @@ class SettingsView(ctk.CTkFrame):
         set_translation_model(model)
 
         self.status_label.configure(text="Saved.", text_color=SUCCESS)
+
+    def _build_diagnostics_card(self) -> None:
+        from app.gui.open_utils import open_path
+        from app.main import LOG_FILE
+
+        card = ctk.CTkFrame(self, corner_radius=14, fg_color=SURFACE)
+        card.grid(row=3, column=0, sticky="ew", padx=40, pady=10)
+        card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            card, text="Diagnostics", font=self._font(15, "bold"), text_color=TEXT_PRIMARY, anchor="w",
+        ).grid(row=0, column=0, sticky="ew", padx=24, pady=(24, 4))
+        ctk.CTkLabel(
+            card, text="If something goes wrong, this log file has the technical details.",
+            font=self._font(12), text_color=TEXT_MUTED, anchor="w",
+        ).grid(row=1, column=0, sticky="ew", padx=24, pady=(0, 14))
+
+        def _open_log() -> None:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            if not LOG_FILE.exists():
+                LOG_FILE.touch()
+            open_path(LOG_FILE)
+
+        ctk.CTkButton(
+            card, text="Open Log File", font=self._font(13), height=36,
+            fg_color="transparent", hover_color=("gray85", "gray25"),
+            text_color=TEXT_PRIMARY, border_width=1, border_color=BORDER,
+            command=_open_log,
+        ).grid(row=2, column=0, sticky="w", padx=24, pady=(0, 24))

@@ -10,17 +10,18 @@ from pathlib import Path
 from tkinter import messagebox
 
 import customtkinter as ctk
-from app.gui.model_missing_dialog import ModelMissingDialog
-from app.services.model_downloader import ModelLoadError, ModelNotFoundError
+
 from app.core.history import add_entry
 from app.core.pipeline import PipelineResult, run_pipeline
 from app.gui.dnd_support import DnDCTk
 from app.gui.fonts import setup_fonts
 from app.gui.generate_view import GenerateView
 from app.gui.history_tab import HistoryTab
+from app.gui.model_missing_dialog import ModelMissingDialog
 from app.gui.settings_view import SettingsView
 from app.gui.sidebar import Sidebar
 from app.gui.theme import SUCCESS
+from app.services.model_downloader import ModelLoadError, ModelNotFoundError
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -41,10 +42,21 @@ class MainWindow(DnDCTk):
 
         self._build_layout()
 
-        # Deferred until after the event loop actually starts -- resizing
-        # synchronously before mainloop() runs caused an invisible window
-        # on some setups.
         self.after(0, self._maximize_on_start)
+
+    def report_callback_exception(self, exc, val, tb):
+        """
+        Tkinter's default behavior for exceptions raised inside widget
+        callbacks (button commands, after() callbacks, etc.) is to print
+        to stderr and otherwise continue silently -- invisible in a
+        packaged windowed exe. Log it to a real file instead.
+        """
+        import traceback
+        from app.main import LOG_FILE
+
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write("\n--- Tkinter callback exception ---\n")
+            traceback.print_exception(exc, val, tb, file=f)
 
     # -------- Startup helpers --------
 
@@ -134,6 +146,7 @@ class MainWindow(DnDCTk):
                 target_language=target_language,
                 on_progress=lambda msg: self._progress_queue.put(("progress", msg)),
             )
+            self._progress_queue.put(("done", result))
         except ModelNotFoundError as e:
             self._progress_queue.put(("model_missing", e))
         except ModelLoadError as e:
@@ -169,21 +182,29 @@ class MainWindow(DnDCTk):
             f"Done \u2014 {result.segment_count} segments, language: {result.language}", color=SUCCESS,
         )
 
-        add_entry(
-            source_file=self._selected_file,
-            srt_path=result.srt_path,
-            language=result.language,
-            segment_count=result.segment_count,
-            translated_srt_path=result.translated_srt_path,
-            target_language=result.target_language,
-        )
+        try:
+            add_entry(
+                source_file=self._selected_file,
+                srt_path=result.srt_path,
+                language=result.language,
+                segment_count=result.segment_count,
+                translated_srt_path=result.translated_srt_path,
+                target_language=result.target_language,
+            )
+        except Exception:
+            # A history-write failure shouldn't prevent the user from
+            # seeing their (already successfully generated) files.
+            import traceback
+            from app.main import LOG_FILE
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write("\n--- add_entry failed ---\n")
+                traceback.print_exc(file=f)
 
         message = f"SRT file saved to:\n{result.srt_path}"
         if result.translated_srt_path:
             message += f"\n\nTranslated ({result.target_language}) SRT saved to:\n{result.translated_srt_path}"
 
         messagebox.showinfo("Subtitles Generated", message)
-
 
     def _on_model_missing(self, error, corrupted: bool) -> None:
         self.generate_view.set_busy(False)
