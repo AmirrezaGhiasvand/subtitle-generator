@@ -5,7 +5,8 @@ A simple desktop app: drop in a video or audio file, get back an accurate
 recognition (Faster-Whisper), with optional AI-powered translation into
 another language.
 
-![Generate Subtitles screenshot](docs/screenshot-generate.png)
+<img width="1920" height="1058" alt="{2DE025C8-82D3-4242-84D7-D33BE01BDDB1}" src="https://github.com/user-attachments/assets/5502b131-a0e4-4157-a4f6-473200baf873" />
+
 
 ## Features
 
