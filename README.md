@@ -1,88 +1,65 @@
 # Subtitle Generator
 
-A simple, open-source desktop app: drop in a video or audio file, get back an
-`.srt` subtitle file — spoken language auto-detected, with an optional
-translation into a language of your choice. Runs fully locally using
-open-source AI models, packaged as a single desktop executable.
+A simple desktop app: drop in a video or audio file, get back an accurate
+`.srt` subtitle file. Runs fully offline using local, open-source speech
+recognition (Faster-Whisper), with optional AI-powered translation into
+another language.
 
-🔗 **Repo:** [github.com/<your-username>/subtitle-generator](https://github.com/AmirrezaGhiasvand/subtitle-generator)
-
-> 🚧 **Status: early development.** Currently building the core pipeline
-> (FFmpeg → Faster-Whisper → SRT). See [Roadmap](#roadmap) below.
-
----
-
-## The Journey
-
-This project actually started out scoped as a full web application — FastAPI
-backend, React frontend, Docker, the works. Partway through building the
-foundation, the scope was deliberately cut down to what the project actually
-needed to be: a focused, single-purpose desktop tool. Simpler, more shippable,
-and more useful for the actual use case (a local file in, a subtitle file out)
-than a web app would have been.
-
-While evaluating translation options, the initial pick — Argos Translate —
-turned out to pull in a full PyTorch + CUDA toolkit stack (multiple GB) just
-for sentence-boundary detection. Swapped to CTranslate2-based OPUS-MT models
-instead, reusing the same lightweight inference engine already used for
-transcription (Faster-Whisper) — keeping the whole app's runtime footprint
-small and torch-free.
-
----
+![Generate Subtitles screenshot](docs/screenshot-generate.png)
 
 ## Features
 
-**In progress:**
-- [ ] Upload/select a video or audio file
-- [ ] Extract audio via FFmpeg
-- [ ] Transcribe with Faster-Whisper, auto-detecting the spoken language
-- [ ] Generate a valid `.srt` file
-- [ ] Optional translation into a chosen target language (CTranslate2 / OPUS-MT)
-- [ ] Simple, modern desktop UI (CustomTkinter)
-- [ ] Packaged as a standalone `.exe` (PyInstaller)
+- Drag & drop (or browse) video/audio files — MP4, MKV, MOV, AVI, MP3, WAV, M4A, FLAC, and more
+- Automatic language detection
+- Word-accurate subtitle timing, capped at ~7 words per line for readability
+- Optional translation into 14+ languages (via OpenRouter, requires a free API key)
+- History tab — revisit and re-open any past result
+- Runs entirely on your machine — no video/audio ever leaves your computer (translation text is the only thing sent to a third-party API, and only if you use that feature)
 
----
+## Download
 
-## Tech Stack
+Grab the latest `.exe` from the [v1.0.0 release](https://github.com/AmirrezaGhiasvand/subtitle-generator/releases/tag/v1.0.0). No installation required — just run it.
 
-- **GUI:** CustomTkinter
-- **Speech recognition:** Faster-Whisper (local, auto language detection)
-- **Translation:** CTranslate2 + OPUS-MT models (local, no PyTorch required)
-- **Audio extraction:** FFmpeg
-- **Packaging:** PyInstaller
+**Requirements:**
 
----
+- Windows 10/11
+- [FFmpeg](https://ffmpeg.org/download.html) installed and on your system PATH
+- ~2GB free disk space for the speech recognition model (one-time download, see below)
 
-## Getting Started
+## First-time setup
 
-*Not yet runnable end-to-end — filled in as the pipeline comes together.*
+The app needs the Faster-Whisper model files (~1.6GB), downloaded once and reused for every file after that:
 
-### Prerequisites
-- Python 3.11+
-- [FFmpeg](https://ffmpeg.org/) installed and on your system PATH
-- Linux only: `tkinter` may need a separate install (`sudo apt install python3-tk`) —
-  it ships by default with Python on Windows and macOS
+1. Open the app — if the model isn't found, it'll show you exactly what to do
+2. Click **Open Download Page**, download every file listed there
+3. Click **Open Models Folder**, move the downloaded files in
+4. Come back and click **Generate Subtitles**
 
-### Setup
-```bash
-python -m venv venv
-source venv/bin/activate   # venv\Scripts\activate on Windows
-pip install -r requirements-dev.txt
-```
+Already have the model files somewhere else on your machine? Use **Locate Model Folder** (in that same dialog, or under **Settings**) to point the app at them instead — no need to move anything.
 
----
+## Using the app
 
-## Roadmap
+1. **Generate tab** — drag a video/audio file onto the drop zone, or click _Locate File_
+2. _(Optional)_ Choose a language under **Translate to** if you want a second, translated subtitle file
+3. Click **Generate Subtitles** and wait — progress is shown live
+4. You'll get an `.srt` file (and a translated one, if selected) saved next to your source file in an `output` folder
+5. **History tab** — see everything you've generated, with quick buttons to open the file or reveal it in your file explorer
 
-1. FFmpeg audio extraction service
-2. Faster-Whisper transcription (with language auto-detection)
-3. SRT formatter
-4. CTranslate2/OPUS-MT translation service
-5. CustomTkinter desktop UI wired to the pipeline
-6. Progress reporting during processing
-7. PyInstaller packaging into a standalone `.exe`
+## Setting up translation (optional)
 
----
+Translation uses [OpenRouter](https://openrouter.ai) — a small per-request cost, no subscription.
+
+1. Get a free API key at [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Go to **Settings** in the app, paste your key, save
+3. Pick a target language on the Generate tab from then on
+
+## Troubleshooting
+
+Something not working? Go to **Settings → Open Log File** — it has the technical details of anything that went wrong, useful if you're reporting a bug.
+
+## Tech stack
+
+Python · CustomTkinter · Faster-Whisper (CTranslate2) · FFmpeg · OpenRouter · PyInstaller
 
 ## License
 
